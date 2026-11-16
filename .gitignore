@@ -1,0 +1,4 @@
+/venv
+/corpus
+.python-version
+temp_audio.wav
