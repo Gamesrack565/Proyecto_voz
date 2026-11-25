@@ -6,15 +6,14 @@ from PyQt6.QtWidgets import (
     QFrame, QGridLayout, QSlider
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QRectF
-from PyQt6.QtGui import QPainter, QColor, QLinearGradient, QTextCursor, QFont
+from PyQt6.QtGui import QPainter, QColor, QTextCursor, QFont
 
-# Edita aquí los nombres de los integrantes para la barra superior
 DESARROLLADO_POR = "Desarrollado por: Angel Higuera, Edwin Perez"
 ANCHO_SIDEBAR = 255
 
 
 class EspectroWidget(QWidget):
-    """Visualizador de espectro en tiempo real en tono claro."""
+    """Visualizador de espectro en tiempo real con barras en #B8B8FF."""
     def __init__(self, num_barras=32, parent=None):
         super().__init__(parent)
         self.num_barras = num_barras
@@ -38,11 +37,11 @@ class EspectroWidget(QWidget):
         w = self.width()
         h = self.height()
 
-        painter.setPen(QColor("#ddd6fe"))
+        painter.setPen(QColor("#B8B8FF"))
         painter.setBrush(QColor("#ffffff"))
         painter.drawRoundedRect(QRectF(1, 1, w - 2, h - 2), 12, 12)
 
-        painter.setPen(QColor("#ede9fe"))
+        painter.setPen(QColor("#F8F7FF"))
         painter.drawLine(18, h // 2, w - 18, h // 2)
 
         margen_x = 22
@@ -50,13 +49,8 @@ class EspectroWidget(QWidget):
         paso = espacio_disponible / self.num_barras
         ancho_barra = max(4.0, paso * 0.62)
 
-        gradiente = QLinearGradient(0, 12, 0, h - 12)
-        gradiente.setColorAt(0.0, QColor("#a855f7"))
-        gradiente.setColorAt(0.5, QColor("#7c3aed"))
-        gradiente.setColorAt(1.0, QColor("#6366f1"))
-
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(gradiente)
+        painter.setBrush(QColor("#B8B8FF"))
 
         for i, nivel in enumerate(self.niveles):
             altura = max(6.0, float(nivel) * (h - 32))
@@ -68,7 +62,7 @@ class EspectroWidget(QWidget):
 class VistaInteractiva(QMainWindow):
     solicitar_entrenamiento = pyqtSignal()
     solicitar_prediccion_archivo = pyqtSignal(str)
-    solicitar_grabacion_microfono = pyqtSignal(float)  # Emite el factor de ganancia
+    solicitar_grabacion_microfono = pyqtSignal(float)
 
     def __init__(self, frecuencia_muestreo=16000):
         super().__init__()
@@ -81,7 +75,7 @@ class VistaInteractiva(QMainWindow):
         self._aplicar_estilos()
 
     def _construir_ui(self):
-        # Marco perimetral morado
+        # Marco perimetral
         marco_morado = QWidget()
         marco_morado.setObjectName("MarcoMorado")
         layout_marco = QVBoxLayout(marco_morado)
@@ -101,7 +95,6 @@ class VistaInteractiva(QMainWindow):
         layout_top.setContentsMargins(0, 0, 22, 0)
         layout_top.setSpacing(0)
 
-        # Recuadro ASR: inicia en el borde izquierdo y termina en el borde derecho del sidebar
         lbl_badge = QLabel("ASR · HMM (Bakis) vs SVM (RBF)")
         lbl_badge.setObjectName("BadgeSuperior")
         lbl_badge.setFixedWidth(ANCHO_SIDEBAR)
@@ -309,7 +302,6 @@ class VistaInteractiva(QMainWindow):
         layout.setContentsMargins(32, 26, 32, 26)
         layout.setSpacing(16)
 
-        # Cabecera con título a la izquierda y contador regresivo pegado a la derecha
         fila_encabezado = QHBoxLayout()
         fila_encabezado.setSpacing(12)
 
@@ -322,7 +314,6 @@ class VistaInteractiva(QMainWindow):
         col_titulos.addWidget(titulo)
         col_titulos.addWidget(subtitulo)
 
-        # Cuadro contador de tiempo restante (oculto hasta que se presiona grabar)
         self.cuadro_contador = QFrame()
         self.cuadro_contador.setObjectName("CuadroContador")
         lay_contador = QVBoxLayout(self.cuadro_contador)
@@ -345,10 +336,8 @@ class VistaInteractiva(QMainWindow):
         fila_encabezado.addStretch()
         fila_encabezado.addWidget(self.cuadro_contador, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        # Espectro reactivo
         self.espectro = EspectroWidget(num_barras=32)
 
-        # Control de volumen / ganancia del micrófono
         tarjeta_volumen = QFrame()
         tarjeta_volumen.setObjectName("Tarjeta")
         lay_vol = QHBoxLayout(tarjeta_volumen)
@@ -359,7 +348,7 @@ class VistaInteractiva(QMainWindow):
         lbl_vol_titulo.setObjectName("EtiquetaVolumen")
 
         self.slider_volumen = QSlider(Qt.Orientation.Horizontal)
-        self.slider_volumen.setRange(10, 250)  # 10% a 250% de ganancia
+        self.slider_volumen.setRange(10, 250)
         self.slider_volumen.setValue(100)
         self.slider_volumen.setCursor(Qt.CursorShape.PointingHandCursor)
         self.slider_volumen.valueChanged.connect(self._actualizar_etiqueta_volumen)
@@ -373,7 +362,6 @@ class VistaInteractiva(QMainWindow):
         lay_vol.addWidget(self.slider_volumen, 1)
         lay_vol.addWidget(self.lbl_valor_volumen)
 
-        # Botón grabar y estado
         fila_btn = QHBoxLayout()
         self.btn_grabar = QPushButton("Grabar desde Micrófono (2.0 s)")
         self.btn_grabar.setObjectName("BotonPrimario")
@@ -447,18 +435,18 @@ class VistaInteractiva(QMainWindow):
                 background-color: #ffffff;
             }
             QTreeView::item:selected, QListView::item:selected {
-                background-color: #ede9fe;
-                color: #5b21b6;
+                background-color: #F8F7FF;
+                color: #9381FF;
             }
             QPushButton {
-                background-color: #f3effc;
+                background-color: #F8F7FF;
                 color: #1e1b2e;
-                border: 1px solid #d8b4fe;
+                border: 1px solid #B8B8FF;
                 border-radius: 6px;
                 padding: 5px 14px;
             }
             QPushButton:hover {
-                background-color: #e9d5ff;
+                background-color: #B8B8FF;
             }
         """)
 
@@ -536,7 +524,7 @@ class VistaInteractiva(QMainWindow):
         else:
             self.agregar_texto_consola(f"\n{mensaje}\n")
 
-    # ==================== ESTILOS QSS (TONO CLARO) ====================
+    # ==================== ESTILOS QSS ====================
     def _aplicar_estilos(self):
         self.setStyleSheet("""
             QWidget {
@@ -544,30 +532,25 @@ class VistaInteractiva(QMainWindow):
                 color: #1e1b2e;
             }
             #MarcoMorado {
-                background: qlineargradient(
-                    x1:0, y1:0, x2:1, y2:1,
-                    stop:0 #7c3aed, stop:0.5 #9333ea, stop:1 #6d28d9
-                );
+                background-color: #9381FF;
             }
             #ContenedorInterior {
-                background-color: #f8f7fc;
+                background-color: #F8F7FF;
                 border-radius: 10px;
             }
             #BarraSuperior {
                 background-color: #ffffff;
                 border-top-left-radius: 10px;
                 border-top-right-radius: 10px;
-                border-bottom: 1px solid #e5dff5;
+                border-bottom: 1px solid #B8B8FF;
             }
-            /* Recuadro ASR alineado de borde izquierdo hasta el borde derecho del sidebar */
             #BadgeSuperior {
                 font-size: 12px;
                 font-weight: 700;
-                color: #5b21b6;
-                background-color: #ede9fe;
+                color: #ffffff;
+                background-color: #9381FF;
                 border-top-left-radius: 10px;
-                border-right: 1px solid #e2daf5;
-                border-bottom: 1px solid #e5dff5;
+                border-right: 1px solid #B8B8FF;
             }
             #TextoAutores {
                 font-size: 12px;
@@ -575,18 +558,18 @@ class VistaInteractiva(QMainWindow):
                 color: #475569;
             }
             #Sidebar {
-                background-color: #f2effa;
+                background-color: #F8F7FF;
                 border-bottom-left-radius: 10px;
-                border-right: 1px solid #e2daf5;
+                border-right: 1px solid #B8B8FF;
             }
             #LogoTitulo {
                 font-size: 19px;
                 font-weight: 800;
-                color: #4c1d95;
+                color: #9381FF;
                 line-height: 1.2;
             }
             #SeparadorSidebar {
-                background-color: #ddd6fe;
+                background-color: #B8B8FF;
             }
             #PieSidebar {
                 font-size: 11px;
@@ -600,19 +583,19 @@ class VistaInteractiva(QMainWindow):
                 color: #334155;
                 font-size: 13px;
                 font-weight: 600;
-                border: 1px solid transparent;
+                border: 2px solid transparent;
             }
             #BotonNav:hover {
-                background-color: #e9e3f8;
-                color: #4c1d95;
+                background-color: #FFEEDD;
+                color: #9381FF;
             }
             #BotonNav:checked {
                 background-color: #ffffff;
-                color: #6d28d9;
-                border: 1px solid #a78bfa;
+                color: #9381FF;
+                border: 2px solid #FFEEDD;
             }
             #AreaContenido {
-                background-color: #f8f7fc;
+                background-color: #F8F7FF;
                 border-bottom-right-radius: 10px;
             }
             #TituloPagina {
@@ -624,25 +607,23 @@ class VistaInteractiva(QMainWindow):
                 font-size: 13px;
                 color: #64748b;
             }
-            /* Cuadro contador de tiempo restante */
             #CuadroContador {
-                background-color: #f3e8ff;
-                border: 2px solid #8b5cf6;
+                background-color: #FFEEDD;
+                border: 2px solid #9381FF;
                 border-radius: 10px;
                 min-width: 125px;
             }
             #TituloContador {
                 font-size: 10px;
                 font-weight: 800;
-                color: #6d28d9;
+                color: #9381FF;
                 letter-spacing: 0.8px;
             }
             #ValorContador {
                 font-size: 20px;
                 font-weight: 800;
-                color: #4c1d95;
+                color: #1e1b2e;
             }
-            /* Control de volumen */
             #EtiquetaVolumen {
                 font-size: 13px;
                 font-weight: 600;
@@ -651,19 +632,19 @@ class VistaInteractiva(QMainWindow):
             #ValorVolumen {
                 font-size: 13px;
                 font-weight: 700;
-                color: #6d28d9;
+                color: #9381FF;
             }
             QSlider::groove:horizontal {
                 height: 6px;
-                background: #ede9fe;
+                background: #B8B8FF;
                 border-radius: 3px;
             }
             QSlider::sub-page:horizontal {
-                background: #7c3aed;
+                background: #9381FF;
                 border-radius: 3px;
             }
             QSlider::handle:horizontal {
-                background: #6d28d9;
+                background: #9381FF;
                 border: 2px solid #ffffff;
                 width: 16px;
                 height: 16px;
@@ -671,17 +652,17 @@ class VistaInteractiva(QMainWindow):
                 border-radius: 9px;
             }
             QSlider::handle:horizontal:hover {
-                background: #8b5cf6;
+                background: #7c68f5;
             }
             #EtiquetaSeccion {
                 font-size: 13px;
                 font-weight: 700;
-                color: #5b21b6;
+                color: #9381FF;
             }
             #EtiquetaEstado {
                 font-size: 13px;
-                font-weight: 600;
-                color: #7c3aed;
+                font-weight: 700;
+                color: #9381FF;
             }
             #EtiquetaAviso {
                 font-size: 13px;
@@ -690,7 +671,7 @@ class VistaInteractiva(QMainWindow):
             }
             #Tarjeta {
                 background-color: #ffffff;
-                border: 1px solid #e2daf5;
+                border: 1px solid #B8B8FF;
                 border-radius: 10px;
             }
             #TituloTarjeta {
@@ -703,12 +684,12 @@ class VistaInteractiva(QMainWindow):
             #ValorTarjeta {
                 font-size: 14px;
                 font-weight: 700;
-                color: #4c1d95;
+                color: #9381FF;
             }
             #ValorTarjetaGrande {
                 font-size: 26px;
                 font-weight: 800;
-                color: #6d28d9;
+                color: #9381FF;
                 letter-spacing: 1px;
             }
             #RutaArchivo {
@@ -717,7 +698,7 @@ class VistaInteractiva(QMainWindow):
                 font-weight: 500;
             }
             #BotonPrimario {
-                background-color: #7c3aed;
+                background-color: #9381FF;
                 color: #ffffff;
                 border: none;
                 border-radius: 8px;
@@ -726,65 +707,62 @@ class VistaInteractiva(QMainWindow):
                 font-weight: 700;
             }
             #BotonPrimario:hover {
-                background-color: #6d28d9;
+                background-color: #7f6be8;
             }
             #BotonPrimario:disabled {
-                background-color: #c4b5fd;
+                background-color: #B8B8FF;
                 color: #ffffff;
             }
             #BotonSecundario {
-                background-color: #ede9fe;
-                color: #5b21b6;
-                border: 1px solid #c4b5fd;
+                background-color: #FFEEDD;
+                color: #1e1b2e;
+                border: 1px solid #9381FF;
                 border-radius: 8px;
                 padding: 10px 18px;
                 font-size: 13px;
                 font-weight: 600;
             }
             #BotonSecundario:hover {
-                background-color: #ddd6fe;
+                background-color: #9381FF;
             }
             QProgressBar {
-                background-color: #ede9fe;
-                border: 1px solid #d8b4fe;
+                background-color: #F8F7FF;
+                border: 1px solid #B8B8FF;
                 border-radius: 7px;
                 height: 20px;
                 text-align: center;
-                color: #2e1065;
+                color: #1e1b2e;
                 font-weight: 700;
                 font-size: 11px;
             }
             QProgressBar::chunk {
-                background: qlineargradient(
-                    x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #7c3aed, stop:1 #a855f7
-                );
+                background-color: #9381FF;
                 border-radius: 6px;
             }
             #ConsolaSalida {
                 background-color: #ffffff;
-                border: 1px solid #ddd6fe;
+                border: 1px solid #B8B8FF;
                 border-radius: 8px;
-                color: #2e1065;
+                color: #1e1b2e;
                 padding: 10px;
             }
             /* Barra deslizadora vertical y horizontal (ScrollBar) */
             QScrollBar:vertical {
-                background: #f3effc;
+                background: #F8F7FF;
                 width: 10px;
                 margin: 4px 2px 4px 2px;
                 border-radius: 5px;
             }
             QScrollBar::handle:vertical {
-                background: #c4b5fd;
+                background: #B8B8FF;
                 min-height: 30px;
                 border-radius: 5px;
             }
             QScrollBar::handle:vertical:hover {
-                background: #8b5cf6;
+                background: #9381FF;
             }
             QScrollBar::handle:vertical:pressed {
-                background: #6d28d9;
+                background: #7f6be8;
             }
             QScrollBar::add-line:vertical,
             QScrollBar::sub-line:vertical,
@@ -793,23 +771,22 @@ class VistaInteractiva(QMainWindow):
                 background: none;
                 height: 0px;
             }
-
             QScrollBar:horizontal {
-                background: #f3effc;
+                background: #F8F7FF;
                 height: 10px;
                 margin: 2px 4px 2px 4px;
                 border-radius: 5px;
             }
             QScrollBar::handle:horizontal {
-                background: #c4b5fd;
+                background: #B8B8FF;
                 min-width: 30px;
                 border-radius: 5px;
             }
             QScrollBar::handle:horizontal:hover {
-                background: #8b5cf6;
+                background: #9381FF;
             }
             QScrollBar::handle:horizontal:pressed {
-                background: #6d28d9;
+                background: #7f6be8;
             }
             QScrollBar::add-line:horizontal,
             QScrollBar::sub-line:horizontal,
