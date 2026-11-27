@@ -52,15 +52,23 @@ class ModeloSVM:
                 archivos = random.sample(archivos, max_audios_por_clase)
                 
             X_clase = []
+            descartados = []
             for archivo in archivos:
                 ruta_archivo = os.path.join(ruta_clase, archivo)
                 try:
                     caracteristicas = self.preprocesador.procesar(ruta_archivo)
                     if caracteristicas.shape[0] >= 9:
                         X_clase.append(caracteristicas)
-                except Exception:
-                    continue
-                    
+                    else:
+                        descartados.append((archivo, "muy pocos frames"))
+                except Exception as e:
+                    descartados.append((archivo, str(e)))
+
+            if descartados:
+                print(f" [!] '{etiqueta}': {len(descartados)}/{len(archivos)} audios descartados")
+                for archivo, motivo in descartados:
+                    print(f"     - {archivo}: {motivo}")
+
             if len(X_clase) < 3:
                 print(f" [!] Muy pocos audios válidos en '{etiqueta}'. Omitiendo partición.")
                 train_data, test_data = X_clase, []

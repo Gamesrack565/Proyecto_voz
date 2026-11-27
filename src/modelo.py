@@ -17,6 +17,38 @@ class PreprocesadorAudio:
         # Filtro pasa-altas a 80 Hz para eliminar ruido eléctrico, pop del micrófono y ventiladores
         self.sos_hp = butter(4, 80, btype='highpass', fs=self.sr, output='sos')
 
+    def _suprimir_clics_borde(self, senal, max_iter=3):
+        """
+        Silencia pops del micrófono: ráfagas cortas (<=150 ms) que tocan el inicio o el
+        final de la grabación y son al menos el doble de fuertes que cualquier otro sonido.
+        Si no se eliminan, el VAD se queda con el clic y descarta la palabra.
+        """
+        senal = senal.copy()
+        toque_borde = int(0.03 * self.sr)
+        duracion_max_clic = int(0.15 * self.sr)
+        margen = int(0.01 * self.sr)
+        n_clics = 0
+
+        for _ in range(max_iter):
+            intervalos = librosa.effects.split(senal, top_db=18, frame_length=400, hop_length=160)
+            if len(intervalos) == 0:
+                break
+            picos = [np.max(np.abs(senal[a:b])) for a, b in intervalos]
+            k = int(np.argmax(picos))
+            a, b = intervalos[k]
+            otros_picos = [p for i, p in enumerate(picos) if i != k]
+
+            es_corto = (b - a) <= duracion_max_clic
+            toca_borde = a <= toque_borde or b >= len(senal) - toque_borde
+            domina = not otros_picos or picos[k] >= 2 * max(otros_picos)
+
+            if not (es_corto and toca_borde and domina):
+                break
+            senal[max(0, a - margen):b + margen] = 0.0
+            n_clics += 1
+
+        return senal, n_clics
+
     def procesar(self, ruta_archivo):
         # 1. Conversión a mono y 16 kHz
         senal, sr = librosa.load(ruta_archivo, sr=self.sr, mono=True)
@@ -29,19 +61,26 @@ class PreprocesadorAudio:
         rms = librosa.feature.rms(y=senal, frame_length=400, hop_length=160)
         if np.max(rms) < 0.008:
             raise ValueError("Silencio detectado. Habla más cerca del micrófono.")
-            
-        # 4. Normalización base y recorte inteligente de voz activa (VAD)
+
+        # 4. Eliminar clics/pops del micrófono pegados a los extremos de la grabación
+        senal, n_clics = self._suprimir_clics_borde(senal)
+        if n_clics:
+            rms = librosa.feature.rms(y=senal, frame_length=400, hop_length=160)
+            if np.max(rms) < 0.008:
+                raise ValueError("Solo se detectó un clic del micrófono, sin voz.")
+
+        # 5. Normalización base y recorte inteligente de voz activa (VAD)
         senal = librosa.util.normalize(senal)
         intervalos = librosa.effects.split(senal, top_db=18, frame_length=400, hop_length=160)
-        
+
         if len(intervalos) > 0:
-            # Conservar solo segmentos con al menos 25% de la amplitud pico (ignora clics aislados)
+            # Conservar segmentos con al menos 5% de la energía del segmento más fuerte
+            # (la energía acumulada distingue la palabra de ruidos breves mejor que el pico)
+            energias = [np.sum(senal[a:b] ** 2) for a, b in intervalos]
+            umbral = 0.05 * max(energias)
             intervalos_validos = [
-                inter for inter in intervalos 
-                if np.max(np.abs(senal[inter[0]:inter[1]])) > 0.25
+                inter for inter, e in zip(intervalos, energias) if e >= umbral
             ]
-            if not intervalos_validos:
-                intervalos_validos = intervalos
                 
             # Dejar un margen de 40 ms en los extremos para no cortar consonantes como /s/ o /t/
             margen = int(0.04 * self.sr)
@@ -54,13 +93,13 @@ class PreprocesadorAudio:
         if len(senal_recortada) < int(self.sr * 0.15):
             senal_recortada = senal
 
-        # 5. Filtro de Wiener estabilizado + Pre-énfasis (realza consonantes agudas)
+        # 6. Filtro de Wiener estabilizado + Pre-énfasis (realza consonantes agudas)
         senal_filtrada = wiener(senal_recortada + 1e-8, mysize=29)
         senal_filtrada = np.nan_to_num(senal_filtrada)
         senal_pre = librosa.effects.preemphasis(senal_filtrada, coef=0.97)
         senal_normalizada = librosa.util.normalize(senal_pre)
         
-        # 6. Extracción de MFCCs con ventaneo estándar de voz (25 ms ventana / 10 ms salto)
+        # 7. Extracción de MFCCs con ventaneo estándar de voz (25 ms ventana / 10 ms salto)
         mfcc = librosa.feature.mfcc(
             y=senal_normalizada, 
             sr=self.sr, 
@@ -77,10 +116,10 @@ class PreprocesadorAudio:
             faltantes = 9 - mfcc.shape[1]
             mfcc = np.pad(mfcc, pad_width=((0, 0), (0, faltantes)), mode='edge')
             
-        # 7. Normalización Cepstral de la Media (CMN): hace al sistema invariante al micrófono
+        # 8. Normalización Cepstral de la Media (CMN): hace al sistema invariante al micrófono
         mfcc = mfcc - np.mean(mfcc, axis=1, keepdims=True)
             
-        # 8. Derivadas dinámicas (Velocidad y Aceleración del tracto vocal)
+        # 9. Derivadas dinámicas (Velocidad y Aceleración del tracto vocal)
         delta = librosa.feature.delta(mfcc)
         delta2 = librosa.feature.delta(mfcc, order=2)
         
@@ -158,15 +197,23 @@ class ModeloReconocimiento:
                 archivos = random.sample(archivos, max_audios_por_clase)
                 
             X_clase = []
+            descartados = []
             for archivo in archivos:
                 ruta_archivo = os.path.join(ruta_clase, archivo)
                 try:
                     caracteristicas = self.preprocesador.procesar(ruta_archivo)
-                    if caracteristicas.shape[0] >= 9: 
+                    if caracteristicas.shape[0] >= 9:
                         X_clase.append(caracteristicas)
-                except Exception:
-                    continue
-            
+                    else:
+                        descartados.append((archivo, "muy pocos frames"))
+                except Exception as e:
+                    descartados.append((archivo, str(e)))
+
+            if descartados:
+                print(f" [!] '{etiqueta}': {len(descartados)}/{len(archivos)} audios descartados")
+                for archivo, motivo in descartados:
+                    print(f"     - {archivo}: {motivo}")
+
             if len(X_clase) < 3:
                 print(f" [!] Muy pocos audios válidos en '{etiqueta}'. Omitiendo partición.")
                 train_data, test_data = X_clase, []
@@ -196,8 +243,8 @@ class ModeloReconocimiento:
     def evaluar(self, datos_prueba):
         if not datos_prueba:
             print("\n[!] No hay suficientes datos para evaluar.")
-            return
-            
+            return 0.0, 100.0
+
         print("\n" + "="*55)
         print(" EVALUACIÓN DEL MODELO (TEST SET) ".center(55))
         print("="*55)
@@ -225,6 +272,8 @@ class ModeloReconocimiento:
         print(f"[*] Tasa de Aciertos (Accuracy): {accuracy:.2f}%")
         print(f"[*] Tasa de Error (WER)        : {wer:.2f}%")
         print("="*55 + "\n")
+
+        return accuracy, wer
 
     def predecir(self, caracteristicas):
         if not self.modelos:

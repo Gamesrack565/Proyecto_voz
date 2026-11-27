@@ -46,7 +46,7 @@ class HiloEntrenamiento(QThread):
             datos_prueba = self.modelo_hmm.entrenar(ruta_corpus=self.ruta_corpus, test_size=0.2)
 
             self.progreso.emit(45, "Evaluando modelo HMM...")
-            self.modelo_hmm.evaluar(datos_prueba)
+            acc_hmm, wer_hmm = self.modelo_hmm.evaluar(datos_prueba)
 
             self.progreso.emit(60, "Entrenando modelo SVM (Kernel RBF)...")
             datos_prueba_svm = self.modelo_svm.entrenar(ruta_corpus=self.ruta_corpus, test_size=0.2)
@@ -55,7 +55,6 @@ class HiloEntrenamiento(QThread):
             acc_svm, wer_svm = self.modelo_svm.evaluar(datos_prueba_svm)
 
             if datos_prueba:
-                acc_hmm, wer_hmm = self._calcular_metricas_hmm(datos_prueba)
                 self.comparativa_lista.emit(acc_hmm, wer_hmm, acc_svm, wer_svm)
 
             self.progreso.emit(100, "Análisis y entrenamiento completados")
@@ -65,17 +64,6 @@ class HiloEntrenamiento(QThread):
         finally:
             sys.stdout = stdout_original
             self.finalizado.emit()
-
-    def _calcular_metricas_hmm(self, datos_prueba):
-        aciertos = 0
-        total = 0
-        for etiqueta_real, audios_test in datos_prueba:
-            for caracteristicas in audios_test:
-                if self.modelo_hmm.predecir(caracteristicas) == etiqueta_real:
-                    aciertos += 1
-                total += 1
-        acc = (aciertos / total) * 100 if total > 0 else 0.0
-        return acc, 100.0 - acc
 
 
 class HiloGrabacion(QThread):
